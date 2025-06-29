@@ -18,6 +18,10 @@ unsigned long previousMillis = 0;
 const long interval = 500;  // blink interval in milliseconds
 bool led4State = LOW;
 
+bool servoMoving = false;
+unsigned long servoMoveStart = 0;
+int servoStep = 0;
+
 const int leds[] = {led2, led3, led4};
 const int numLeds = sizeof(leds) / sizeof(leds[0]);
 
@@ -56,15 +60,17 @@ void translateIR()
       digitalWrite(led4,LOW);
       led4Blinking = false;
       break;
-      
+
     case 0xF30CFF00: // 1
       Serial.println("1 -> LED 2 ON");
+      myServo.write(0);
       turnOnSelectedLED(led2);
       break;
 
     case 0xE718FF00: // 2
       Serial.println("2 -> LED 3 ON");
       turnOnSelectedLED(led3);
+      myServo.write(90);
       break;
 
     case 0xA15EFF00: // 3
@@ -89,10 +95,9 @@ void translateIR()
 
     case 0xBF40FF00: // PLAY/PAUSE
       Serial.println("Servo button pressed");
-      myServo.write(0);
-      delay(500);
-      myServo.write(180);
-      delay(500);
+      servoMoving = true;
+      servoMoveStart = millis();
+      servoStep = 0;
       myServo.write(0);
       break;
 
@@ -119,11 +124,23 @@ void setup()
 
 void loop()
 {
-    unsigned long currentMillis = millis();
+  unsigned long currentMillis = millis();
+
+  if (servoMoving) {
+    if (servoStep == 0 && currentMillis - servoMoveStart >= 500) {
+      myServo.write(90);
+      servoMoveStart = currentMillis;
+      servoStep = 1;
+    } else if (servoStep == 1 && currentMillis - servoMoveStart >= 500) {
+      myServo.write(0);
+      servoMoving = false;
+      servoStep = 0;
+    }
+  }
 
   if (led4Blinking) {
     if (currentMillis - previousMillis >= interval) {
-      
+
       previousMillis = currentMillis;
 
       led4State = !led4State;
