@@ -6,6 +6,7 @@ Next step: add **front + rear distance sensors** so the Arduino acts as a **safe
 ## What’s in this folder
 
 - `remote_car.ino`: main Arduino sketch (IR receiver + dual DC motor driver control).
+  - Controls **left** and **right** motor groups (each group can be two motors/wheels).
 
 ## Current features (today)
 
@@ -20,7 +21,9 @@ Next step: add **front + rear distance sensors** so the Arduino acts as a **safe
 - **Arduino**: Uno / Nano (or compatible)
 - **IR receiver module** (uses the `IRremote` library)
 - **Motor driver**: typical dual H-bridge (ex: L298N / similar)
-- **2 DC motors**
+- **4 DC motors**, wired as **two sides**:
+  - Left wheels (pair) on one H-bridge channel
+  - Right wheels (pair) on the other H-bridge channel
 - Battery / power wiring appropriate for your motors + driver
 
 ## Pin mapping (current sketch)
