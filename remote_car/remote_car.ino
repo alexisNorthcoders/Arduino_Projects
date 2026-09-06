@@ -16,8 +16,8 @@
 // Movement
 #define FORWARD_CODE 0x09
 #define BACKWARD_CODE 0x07
-#define RIGHT_CODE 0x43
-#define LEFT_CODE 0x44
+#define RIGHT_CODE 0x44
+#define LEFT_CODE 0x43
 #define STOP_CODE 0x45
 
 // Speed buttons
