@@ -183,7 +183,7 @@ void turnLeft() {
 
     backward();
 
-    analogWrite(ENA, slowSpeed);
+    analogWrite(ENA, s);
     analogWrite(ENB, s * 0.4);
 
   }
