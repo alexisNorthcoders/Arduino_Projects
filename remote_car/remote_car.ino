@@ -33,12 +33,19 @@
 
 // ---------------- SPEED ----------------
 
-int speedLevel = 5;   // Start at 50%
+int speedLevel = 5;  // Start at 50%
 
 int getSpeed() {
-  // 1 = 10%, 9 = 90%
   return map(speedLevel, 1, 9, 26, 230);
 }
+
+// ---------------- TIMING ----------------
+
+// How long we allow the car to continue after
+// the last valid IR command/repeat.
+const unsigned long SIGNAL_TIMEOUT = 350;
+
+unsigned long lastMovementSignal = 0;
 
 // ---------------- MOTION STATE ----------------
 
@@ -54,10 +61,12 @@ Motion currentMotion = STOPPED;
 
 // ---------------- MOTOR FUNCTIONS ----------------
 
-// Your confirmed working direction logic
+// These are your confirmed working directions.
+
 void forward() {
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
+
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
 }
@@ -65,6 +74,7 @@ void forward() {
 void backward() {
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
+
   digitalWrite(IN3, HIGH);
   digitalWrite(IN4, LOW);
 }
@@ -72,6 +82,7 @@ void backward() {
 void left() {
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
+
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
 }
@@ -79,82 +90,71 @@ void left() {
 void right() {
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
+
   digitalWrite(IN3, HIGH);
   digitalWrite(IN4, LOW);
 }
 
 void stopCar() {
-  digitalWrite(IN1, LOW);
-  digitalWrite(IN2, LOW);
-  digitalWrite(IN3, LOW);
-  digitalWrite(IN4, LOW);
-
   analogWrite(ENA, 0);
   analogWrite(ENB, 0);
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
 }
 
-// ---------------- APPLY CURRENT MOTION ----------------
+// ---------------- APPLY SPEED ----------------
 
-void applyMotion() {
+void applyCurrentSpeed() {
 
-  int normalSpeed = getSpeed();
-
-  // Differential steering speed
-  int turnSpeed = normalSpeed * 0.4;
-
-  if (turnSpeed < 20) {
-    turnSpeed = 20;
-  }
+  int s = getSpeed();
 
   switch (currentMotion) {
 
     case FORWARD_MOTION:
       forward();
-      analogWrite(ENA, normalSpeed);
-      analogWrite(ENB, normalSpeed);
+      analogWrite(ENA, s);
+      analogWrite(ENB, s);
       break;
 
     case BACKWARD_MOTION:
       backward();
-      analogWrite(ENA, normalSpeed);
-      analogWrite(ENB, normalSpeed);
+      analogWrite(ENA, s);
+      analogWrite(ENB, s);
       break;
 
-    case LEFT_TURN:
-      if (currentMotion == LEFT_TURN) {
-        // This state is used for differential steering
-        // when moving, or pivoting when stopped.
-      }
-      break;
-
-    case RIGHT_TURN:
-      if (currentMotion == RIGHT_TURN) {
-        // Handled separately below.
-      }
-      break;
-
-    case STOPPED:
-      stopCar();
+    default:
       break;
   }
 }
 
-// ---------------- MOVEMENT COMMANDS ----------------
+// ---------------- MOVEMENT ----------------
 
 void moveForward() {
+
   currentMotion = FORWARD_MOTION;
+  lastMovementSignal = millis();
+
   forward();
 
   int s = getSpeed();
+
   analogWrite(ENA, s);
   analogWrite(ENB, s);
 }
 
 void moveBackward() {
+
   currentMotion = BACKWARD_MOTION;
+  lastMovementSignal = millis();
+
   backward();
 
   int s = getSpeed();
+
   analogWrite(ENA, s);
   analogWrite(ENB, s);
 }
@@ -163,97 +163,89 @@ void moveBackward() {
 
 void turnLeft() {
 
+  lastMovementSignal = millis();
+
   int s = getSpeed();
 
+  // If the car is moving, make a differential turn.
   if (currentMotion == FORWARD_MOTION) {
-
-    // Moving forward:
-    // Left side slower, right side normal
 
     forward();
 
-    analogWrite(ENA, s);
-    analogWrite(ENB, s * 0.4);
+    // Left slower, right normal.
+    analogWrite(ENA, s * 0.4);
+    analogWrite(ENB, s);
 
+    return;
   }
-  else if (currentMotion == BACKWARD_MOTION) {
 
-    // Moving backward:
-    // Left side slower, right side normal
+  if (currentMotion == BACKWARD_MOTION) {
 
     backward();
 
-    analogWrite(ENA, s);
-    analogWrite(ENB, s * 0.4);
+    // Left slower, right normal.
+    analogWrite(ENA, s * 0.4);
+    analogWrite(ENB, s);
 
+    return;
   }
-  else {
 
-    // Stationary = pivot left
-    // Strong pivot turn
+  // Stationary = strong pivot.
+  currentMotion = LEFT_TURN;
 
-    left();
+  left();
 
-    int turnSpeed = 204;  // ~80% PWM
-
-    analogWrite(ENA, turnSpeed);
-    analogWrite(ENB, turnSpeed);
-
-    // Remain logically stopped so another LEFT/RIGHT
-    // after releasing the button still behaves as a pivot.
-    currentMotion = STOPPED;
-  }
+  analogWrite(ENA, 204);  // 80%
+  analogWrite(ENB, 204);  // 80%
 }
 
 // ---------------- RIGHT ----------------
 
 void turnRight() {
 
+  lastMovementSignal = millis();
+
   int s = getSpeed();
 
   if (currentMotion == FORWARD_MOTION) {
 
-    // Moving forward:
-    // Right side slower, left side normal
-
     forward();
 
-    analogWrite(ENA, s * 0.4);
-    analogWrite(ENB, s);
+    // Right slower, left normal.
+    analogWrite(ENA, s);
+    analogWrite(ENB, s * 0.4);
 
+    return;
   }
-  else if (currentMotion == BACKWARD_MOTION) {
 
-    // Moving backward:
-    // Right side slower, left side normal
+  if (currentMotion == BACKWARD_MOTION) {
 
     backward();
 
-    analogWrite(ENA, s * 0.4);
-    analogWrite(ENB, s);
+    // Right slower, left normal.
+    analogWrite(ENA, s);
+    analogWrite(ENB, s * 0.4);
 
+    return;
   }
-  else {
 
-    // Stationary = pivot right
-    // Strong pivot turn
+  // Stationary = strong pivot.
+  currentMotion = RIGHT_TURN;
 
-    right();
+  right();
 
-    int turnSpeed = 204;  // ~80% PWM
-
-    analogWrite(ENA, turnSpeed);
-    analogWrite(ENB, turnSpeed);
-
-    currentMotion = STOPPED;
-  }
+  analogWrite(ENA, 204);  // 80%
+  analogWrite(ENB, 204);  // 80%
 }
 
 // ---------------- STOP ----------------
 
 void doStop() {
+
   currentMotion = STOPPED;
   stopCar();
+
+  Serial.println("STOP");
 }
 
 // ---------------- SPEED ----------------
@@ -271,13 +263,11 @@ void setSpeed(int newLevel) {
   Serial.print("%) PWM=");
   Serial.println(pwm);
 
-  // IMPORTANT:
-  // Immediately apply the new speed if the car is moving.
-
+  // If currently driving straight, immediately change speed.
   if (currentMotion == FORWARD_MOTION ||
       currentMotion == BACKWARD_MOTION) {
 
-    applyMotion();
+    applyCurrentSpeed();
   }
 }
 
@@ -307,83 +297,121 @@ void setup() {
 
 void loop() {
 
+  // ---------------- IR ----------------
+
   if (IrReceiver.decode()) {
 
     uint8_t command = IrReceiver.decodedIRData.command;
+    uint8_t flags = IrReceiver.decodedIRData.flags;
 
-    // Ignore invalid/zero commands
-    if (command != 0x00) {
+    bool isRepeat =
+      (flags & IRDATA_FLAGS_IS_REPEAT);
 
-      Serial.print("Command: 0x");
-      Serial.println(command, HEX);
+    // Ignore invalid command 0x00 unless it is a repeat.
+    if (command != 0x00 || isRepeat) {
 
-      // ---------- MOVEMENT ----------
-
+      // Movement command or repeat
       if (command == FORWARD_CODE) {
 
-        Serial.println("FORWARD");
-        moveForward();
+        if (!isRepeat) {
+          Serial.println("FORWARD");
+        }
 
+        moveForward();
       }
+
       else if (command == BACKWARD_CODE) {
 
-        Serial.println("BACKWARD");
-        moveBackward();
+        if (!isRepeat) {
+          Serial.println("BACKWARD");
+        }
 
+        moveBackward();
       }
+
       else if (command == LEFT_CODE) {
 
-        Serial.println("LEFT");
-        turnLeft();
+        if (!isRepeat) {
+          Serial.println("LEFT");
+        }
 
+        turnLeft();
       }
+
       else if (command == RIGHT_CODE) {
 
-        Serial.println("RIGHT");
-        turnRight();
+        if (!isRepeat) {
+          Serial.println("RIGHT");
+        }
 
+        turnRight();
       }
+
       else if (command == STOP_CODE) {
 
-        Serial.println("STOP");
         doStop();
-
       }
 
-      // ---------- SPEED ----------
-
+      // Speed buttons are NOT movement commands.
       else if (command == SPEED1_CODE) {
         setSpeed(1);
       }
+
       else if (command == SPEED2_CODE) {
         setSpeed(2);
       }
+
       else if (command == SPEED3_CODE) {
         setSpeed(3);
       }
+
       else if (command == SPEED4_CODE) {
         setSpeed(4);
       }
+
       else if (command == SPEED5_CODE) {
         setSpeed(5);
       }
+
       else if (command == SPEED6_CODE) {
         setSpeed(6);
       }
+
       else if (command == SPEED7_CODE) {
         setSpeed(7);
       }
+
       else if (command == SPEED8_CODE) {
         setSpeed(8);
       }
+
       else if (command == SPEED9_CODE) {
         setSpeed(9);
       }
-      else {
-        Serial.println("UNKNOWN");
+
+      else if (!isRepeat) {
+        Serial.print("UNKNOWN COMMAND: 0x");
+        Serial.println(command, HEX);
       }
     }
 
     IrReceiver.resume();
+  }
+
+
+  // ---------------- FAILSAFE ----------------
+
+  // If we are in any movement state and haven't
+  // heard from the remote recently, stop.
+
+  if (currentMotion != STOPPED) {
+
+    if (millis() - lastMovementSignal > SIGNAL_TIMEOUT) {
+
+      Serial.println("IR SIGNAL LOST - STOP");
+
+      currentMotion = STOPPED;
+      stopCar();
+    }
   }
 }
